@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auto Form Filler for Insurance Claim — JS Windshields</title>
+  <link rel="icon" href="data:,"  />
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .container { max-width: 520px; margin: 0 auto; }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 24px 0 20px;
+    }
+    header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a202c;
+      line-height: 1.3;
+    }
+    header p {
+      font-size: 13px;
+      color: #718096;
+      margin-top: 4px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 14px;
+    }
+
+    /* ── Upload ── */
+    .upload-area {
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .upload-area:hover, .upload-area.drag-over { border-color: #4299e1; background: #ebf8ff; }
+    .upload-area.has-file { border-color: #48bb78; background: #f0fff4; }
+    .upload-area input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .upload-icon  { font-size: 32px; margin-bottom: 8px; }
+    .upload-text  { font-size: 15px; color: #4a5568; font-weight: 500; }
+    .upload-sub   { font-size: 12px; color: #a0aec0; margin-top: 4px; }
+    .file-name    { font-size: 13px; color: #276749; font-weight: 600; margin-top: 6px; word-break: break-all; }
+
+    /* ── Select (Insurer) ── */
+    .field select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 15px;
+      color: #1a202c;
+      background: #fff;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23718096' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+      transition: border-color 0.15s;
+    }
+    .field select:focus { border-color: #4299e1; }
+    .field select.placeholder { color: #a0aec0; }
+
+    /* ── Toggles ── */
+    .toggle-group { display: flex; gap: 8px; margin-bottom: 14px; }
+    .toggle-group label { flex: 1; display: block; }
+    .toggle-group input[type="radio"] { display: none; }
+    .toggle-btn {
+      display: block;
+      text-align: center;
+      padding: 10px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #4a5568;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .toggle-group input[type="radio"]:checked + .toggle-btn {
+      border-color: #4299e1;
+      background: #ebf8ff;
+      color: #2b6cb0;
+    }
+    .toggle-group.green input[type="radio"]:checked + .toggle-btn {
+      border-color: #48bb78;
+      background: #f0fff4;
+      color: #276749;
+    }
+    .toggle-group.col { flex-direction: column; }
+    .toggle-group.col .toggle-btn { text-align: left; padding-left: 14px; }
+
+    /* ── Fields ── */
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 13px; font-weight: 500; color: #4a5568; margin-bottom: 6px; }
+    .field input[type="text"],
+    .field input[type="date"],
+    .field input[type="time"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 15px;
+      color: #1a202c;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus { border-color: #4299e1; }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .optional { font-size: 11px; color: #a0aec0; font-weight: 400; margin-left: 4px; }
+
+    /* ── Inline confirmation messages ── */
+    .confirm-msg {
+      font-size: 13px;
+      font-weight: 500;
+      color: #2b6cb0;
+      background: #ebf8ff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-top: -6px;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .confirm-msg.visible { display: block; }
+
+    .amount-msg {
+      font-size: 14px;
+      font-weight: 700;
+      color: #c53030;
+      margin-top: -8px;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .amount-msg.visible { display: block; }
+
+    /* ── Submit button ── */
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
+      background: #2b6cb0;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 4px;
+    }
+    .btn-submit:hover    { background: #2c5282; }
+    .btn-submit:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    /* ── Status ── */
+    .status {
+      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-top: 12px;
+      display: none;
+    }
+    .status.loading { background: #ebf8ff; color: #2b6cb0; display: block; }
+    .status.error   { background: #fff5f5; color: #c53030; display: block; }
+    .status.success { background: #f0fff4; color: #276749; display: block; }
+
+    /* ── Download ── */
+    .download-section { display: none; text-align: center; margin-top: 14px; }
+    .download-section.visible { display: block; }
+    .btn-download {
+      display: inline-block;
+      padding: 13px 28px;
+      background: #276749;
+      color: #fff;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn-download:hover { background: #22543d; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #bfdbfe;
+      border-top-color: #2b6cb0;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Auto Form Filler for Insurance Claim</h1>
+    <p>JS Windshields</p>
+  </header>
+
+  <form id="mainForm">
+
+    <!-- Insurer Selection -->
+    <div class="card">
+      <div class="card-title">Insurance Company</div>
+      <div class="field">
+        <label>Select Insurer</label>
+        <select id="insurerSelect" required onchange="handleInsurerChange(this)">
+          <option value="" disabled selected>— Choose insurer —</option>
+          <option value="Cholamandalam-Claim-Form.pdf">Cholamandalam</option>
+          <option value="Generali-Central-Claim-Form.pdf">Generali Central</option>
+          <option value="HDFC-ERGO-Claim-Form.pdf">HDFC ERGO</option>
+          <option value="Kotak-Mahindra-Claim-Form.pdf">Kotak Mahindra</option>
+          <option value="Liberty-General-Claim-Form.pdf">Liberty General</option>
+          <option value="Magma-HDI-Claim-Form.pdf">Magma HDI</option>
+          <option value="Reliance-General-Claim-Form.pdf">Reliance General</option>
+          <option value="Royal-Sundaram-Claim-Form.pdf">Royal Sundaram</option>
+          <option value="SBI-General-Claim-Form.pdf">SBI General</option>
+          <option value="Shriram-General-Claim-Form.pdf">Shriram General</option>
+          <option value="TATA-AIG-Claim-Form.pdf">TATA AIG</option>
+          <option value="United-India-Claim-Form.pdf">United India</option>
+          <option value="Universal-Sompo-Claim-Form.pdf">Universal Sompo</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Govt ID Upload -->
+    <div class="card">
+      <div class="card-title">Govt ID Documents</div>
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="govtIdFile" accept=".pdf" required />
+        <div class="upload-icon">📄</div>
+        <div class="upload-text">Upload Combined PDF</div>
+        <div class="upload-sub">RC · Insurance · DL · Aadhaar · PAN</div>
+        <div class="file-name" id="fileName"></div>
+      </div>
+    </div>
+
+    <!-- Claim Type -->
+    <div class="card">
+      <div class="card-title">Claim Type</div>
+      <div class="toggle-group green">
+        <label>
+          <input type="radio" name="cashless" value="cashless" checked />
+          <span class="toggle-btn">✓ Cashless</span>
+        </label>
+        <label>
+          <input type="radio" name="cashless" value="non-cashless" />
+          <span class="toggle-btn">Non-Cashless</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Accident Details -->
+    <div class="card">
+      <div class="card-title">Accident Details</div>
+
+      <div class="row-2">
+        <div class="field">
+          <label>Date of Accident</label>
+          <input type="date" id="accidentDate" required onchange="updateDateTimeMsg()" />
+        </div>
+        <div class="field">
+          <label>Time of Accident</label>
+          <input type="time" id="accidentTime" required onchange="updateDateTimeMsg()" />
+        </div>
+      </div>
+
+      <div class="confirm-msg" id="dateTimeMsg"></div>
+
+      <div class="field">
+        <label>Place of Accident</label>
+        <input type="text" id="accidentPlace" placeholder="e.g. Dharmapuri" required />
+      </div>
+
+      <div class="field">
+        <label>Accident Type</label>
+        <div class="toggle-group col">
+          <label><input type="radio" name="accident_type" value="stone_hit" checked /><span class="toggle-btn">🪨 Stone hit — moving vehicle</span></label>
+          <label><input type="radio" name="accident_type" value="branch_moving" /><span class="toggle-btn">🌿 Tree branch — moving vehicle</span></label>
+          <label><input type="radio" name="accident_type" value="branch_parked" /><span class="toggle-btn">🌳 Tree branch — parked vehicle</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Estimate Amount <span class="optional">(optional)</span></label>
+        <input type="text" id="estimateAmount" placeholder="e.g. 9250" oninput="updateAmountMsg()" />
+      </div>
+      <div class="amount-msg" id="amountMsg"></div>
+
+    </div>
+
+    <button type="submit" class="btn-submit" id="submitBtn">Generate Filled Form</button>
+  </form>
+
+  <div class="status" id="statusBox"></div>
+  <div class="download-section" id="downloadSection">
+    <a class="btn-download" id="downloadLink" href="#" download="filled_claim_form.pdf">⬇ Download Filled Form</a>
+  </div>
+
+</div>
+
+<script>
+const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const PAGE_H  = 842.04;
+const FS      = 9;
+const FS_WS   = 8;
+const LEADING = 11;
+
+const WORKSHOP = {
+  name:    'JS WINDSHIELDS',
+  address: '5/215, Sagadevan Complex, Lakkiampatty, Dharmapuri - 636705',
+  mobile:  '9080742507',
+};
+
+const BANK = {
+  account: '259080742507',
+  name:    'INDUSIND BANK',
+  ifsc:    'INDB0000202',
+  branch:  'DHARMAPURI',
+};
+
+const DESCRIPTIONS = {
+  stone_hit:     'While the vehicle was in motion, a flying stone projected from a preceding moving truck struck the front windshield, resulting in damage.',
+  branch_moving: 'A tree branch fell onto the front windshield while the vehicle was in motion, causing damage.',
+  branch_parked: 'A tree branch fell onto the front windshields while the vehicle was parked, causing damage.',
+};
+
+const OCCUPANTS = { stone_hit: '1', branch_moving: '1', branch_parked: '0' };
+
+const YES_NO_POS = [
+  [205.7, 217.4, 470.6],
+  [222.8, 234.5, 495.2],
+  [275.1, 284.9, 519.3],
+  [247.0, 256.8, 548.3],
+  [221.3, 231.0, 580.4],
+  [261.1, 270.8, 615.8],
+  [240.6, 250.4, 651.3],
+];
+
+const AM_POS = [400.2, 419.4, 293.7];
+const PM_POS = [427.5, 446.3, 293.7];
+
+
+
+// ─── Insurer ──────────────────────────────────────────────────────────────────
+function handleInsurerChange(sel) {
+  sel.classList.toggle('placeholder', !sel.value);
+}
+
+// ─── Date / Time confirmation ─────────────────────────────────────────────────
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function getAmPm(timeVal) {
+  if (!timeVal) return 'AM';
+  return parseInt(timeVal.split(':')[0]) < 12 ? 'AM' : 'PM';
+}
+
+function formatTime12h(timeVal) {
+  if (!timeVal) return '';
+  const [h, m] = timeVal.split(':').map(Number);
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const h12  = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function formatDateDisplay(dateVal) {
+  if (!dateVal) return '';
+  const [y, mo, d] = dateVal.split('-');
+  return `${parseInt(d)} ${MONTHS[parseInt(mo) - 1]} ${y}`;
+}
+
+function updateDateTimeMsg() {
+  const dateVal = document.getElementById('accidentDate').value;
+  const timeVal = document.getElementById('accidentTime').value;
+  const el      = document.getElementById('dateTimeMsg');
+  if (dateVal && timeVal) {
+    el.textContent = `Accident on ${formatDateDisplay(dateVal)} at ${formatTime12h(timeVal)}`;
+    el.classList.add('visible');
+  } else {
+    el.classList.remove('visible');
+  }
+}
+
+// ─── Amount confirmation ───────────────────────────────────────────────────────
+function updateAmountMsg() {
+  const val = document.getElementById('estimateAmount').value.trim();
+  const el  = document.getElementById('amountMsg');
+  if (val && !isNaN(val.replace(/,/g, ''))) {
+    const num = parseFloat(val.replace(/,/g, '')).toLocaleString('en-IN');
+    el.textContent = `INR ${num}`;
+    el.classList.add('visible');
+  } else {
+    el.classList.remove('visible');
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function rlY(pyY0) { return PAGE_H - pyY0 - 7; }
+
+function wrapText(text, maxWidth, font, size) {
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+      current = candidate;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function drawCentered(page, text, font, size, xLeft, xRight, y) {
+  if (!text) return;
+  const w    = font.widthOfTextAtSize(text, size);
+  const avail = xRight - xLeft;
+  const x    = w >= avail ? xLeft : xLeft + (avail - w) / 2;
+  page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
+}
+
+function drawWrapped(page, text, font, size, xLeft, xRight, yStart, maxLines = 4) {
+  if (!text) return;
+  const lines = wrapText(text, xRight - xLeft, font, size);
+  let y = yStart;
+  for (let i = 0; i < Math.min(lines.length, maxLines); i++) {
+    drawCentered(page, lines[i], font, size, xLeft, xRight, y);
+    y -= LEADING;
+  }
+}
+
+function drawUnderline(page, x0, x1, pyY1) {
+  const y = PAGE_H - pyY1 - 5;
+  page.drawRectangle({ x: x0, y, width: x1 - x0, height: 1.5, color: rgb(0, 0, 0) });
+}
+
+function todayDDMMYYYY() {
+  const d  = new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+function formatInputDate(val) {
+  if (!val) return '';
+  const [y, m, day] = val.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+// ─── Claude Extraction (proxied via backend to avoid CORS) ────────────────────
+async function extractFromPDF(file) {
+  const fd = new FormData();
+  fd.append('govt_id_pdf', file);
+  const res = await fetch('/extract', { method: 'POST', body: fd });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Extraction error ${res.status}`);
+  }
+  return res.json();
+}
+
+// ─── PDF Filling ──────────────────────────────────────────────────────────────
+async function fillForm(extracted, userInputs) {
+  const formPath = `/claim_forms/${userInputs.insurer_file}`;
+  const formBytes = await fetch(formPath).then(r => {
+    if (!r.ok) throw new Error(`Could not load claim form for selected insurer.`);
+    return r.arrayBuffer();
+  });
+
+  const pdfDoc = await PDFDocument.load(formBytes);
+  const page   = pdfDoc.getPages()[0];
+  const font   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const d = (text, xl, xr, y, sz = FS) => drawCentered(page, text, font, sz, xl, xr, y);
+  const w = (text, xl, xr, y, ml, sz = FS) => drawWrapped(page, text, font, sz, xl, xr, y, ml);
+
+  d(extracted.policy_no,    65, 570, rlY(114.4));
+  d(extracted.insured_name, 176, 570, rlY(127.5));
+  w(extracted.insured_address || '', 182, 570, rlY(142.8), 3);
+  d(extracted.pin_code,     158, 250, rlY(188.3));
+  d('Tamil Nadu',           283, 570, rlY(188.3));
+  d(extracted.aadhaar_no,  162, 290, rlY(214.9));
+  d(extracted.pan_no,       335, 570, rlY(213.0));
+
+  if (userInputs.cashless) {
+    d(BANK.account, 168, 290, rlY(229.1));
+    d(BANK.name,    348, 570, rlY(229.1));
+    d(BANK.ifsc,    175, 290, rlY(242.1));
+    d(BANK.branch,  356, 570, rlY(242.1));
+  }
+
+  d(extracted.reg_no,    184, 293, rlY(255.5));
+  d(extracted.make,      327, 408, rlY(255.5));
+  d(extracted.model,     444, 570, rlY(255.5));
+  d(extracted.engine_no, 162, 293, rlY(269.4));
+  d(extracted.chassis_no,346, 570, rlY(269.4));
+
+  d(userInputs.accident_date, 172, 290, rlY(283.7));
+  d(userInputs.accident_time, 322, 398, rlY(283.7));
+
+  const ampmPos = userInputs.am_pm === 'PM' ? PM_POS : AM_POS;
+  drawUnderline(page, ampmPos[0], ampmPos[1], ampmPos[2]);
+
+  w(userInputs.accident_place, 222, 570, rlY(298.2), 2);
+
+  d(extracted.driver_name, 174, 570, rlY(329.9));
+  const dlStr = [extracted.dl_no, extracted.dl_expiry].filter(Boolean).join(' & ');
+  d(dlStr, 248, 570, rlY(342.6));
+
+  w(userInputs.accident_description, 115, 570, rlY(368.0), 4);
+
+  d(userInputs.occupants, 220, 290, rlY(411.6));
+
+  drawCentered(page, WORKSHOP.name,    font, FS_WS, 245, 570, 411.0);
+  drawCentered(page, WORKSHOP.address, font, FS_WS, 245, 570, 401.5);
+  d(WORKSHOP.mobile, 195, 290, rlY(447.2));
+  if (userInputs.estimate_amount) d(userInputs.estimate_amount, 530, 575, rlY(446.0));
+
+  for (const [x0, x1, py1] of YES_NO_POS) drawUnderline(page, x0, x1, py1);
+
+  d(todayDDMMYYYY(), 47, 200, rlY(739.9));
+  d('Dharmapuri',    49, 395, rlY(753.2));
+
+  return await pdfDoc.save();
+}
+
+// ─── Form Submit ──────────────────────────────────────────────────────────────
+document.getElementById('mainForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const insurerFile = document.getElementById('insurerSelect').value;
+  if (!insurerFile) {
+    showStatus('Please select an insurance company.', 'error');
+    playError();
+    return;
+  }
+
+  const file = document.getElementById('govtIdFile').files[0];
+  if (!file) {
+    showStatus('Please upload a PDF file.', 'error');
+    playError();
+    return;
+  }
+
+  const timeVal = document.getElementById('accidentTime').value;
+
+  document.getElementById('downloadSection').classList.remove('visible');
+  document.getElementById('submitBtn').disabled = true;
+  showStatus('<span class="spinner"></span> Extracting documents… (this takes ~15 seconds)', 'loading');
+
+  try {
+    showStatus('<span class="spinner"></span> Claude is reading the documents…', 'loading');
+    const extracted = await extractFromPDF(file);
+
+    const accidentType = document.querySelector('input[name="accident_type"]:checked').value;
+    const userInputs = {
+      insurer_file:         insurerFile,
+      cashless:             document.querySelector('input[name="cashless"]:checked').value === 'cashless',
+      accident_date:        formatInputDate(document.getElementById('accidentDate').value),
+      accident_time:        formatTime12h(timeVal).replace(/\s(AM|PM)$/, ''),
+      am_pm:                getAmPm(timeVal),
+      accident_place:       document.getElementById('accidentPlace').value,
+      accident_description: DESCRIPTIONS[accidentType] || '',
+      occupants:            OCCUPANTS[accidentType] || '1',
+      estimate_amount:      document.getElementById('estimateAmount').value.trim(),
+    };
+
+    showStatus('<span class="spinner"></span> Filling the claim form…', 'loading');
+    const filledBytes = await fillForm(extracted, userInputs);
+
+    const blob = new Blob([filledBytes], { type: 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+    const link = document.getElementById('downloadLink');
+    link.href  = url;
+    link.download = `claim_${extracted.reg_no || 'form'}.pdf`.replace(/\s+/g, '_');
+
+    showStatus('✓ Form filled successfully!', 'success');
+    playSuccess();
+    document.getElementById('downloadSection').classList.add('visible');
+    document.getElementById('downloadSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  } catch (err) {
+    showStatus(`✗ ${err.message}`, 'error');
+    playError();
+  } finally {
+    document.getElementById('submitBtn').disabled = false;
+  }
+});
+
+function showStatus(msg, type) {
+  const el = document.getElementById('statusBox');
+  el.className = `status ${type}`;
+  el.innerHTML = msg;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─── File Upload UX ───────────────────────────────────────────────────────────
+const fileInput  = document.getElementById('govtIdFile');
+const uploadArea = document.getElementById('uploadArea');
+const fileNameEl = document.getElementById('fileName');
+
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files[0];
+  if (f) { fileNameEl.textContent = f.name; uploadArea.classList.add('has-file'); }
+});
+
+['dragover', 'dragleave', 'drop'].forEach(evt => {
+  uploadArea.addEventListener(evt, e => {
+    e.preventDefault();
+    if (evt === 'dragover') uploadArea.classList.add('drag-over');
+    else uploadArea.classList.remove('drag-over');
+    if (evt === 'drop' && e.dataTransfer.files[0]) {
+      fileInput.files = e.dataTransfer.files;
+      fileNameEl.textContent = e.dataTransfer.files[0].name;
+      uploadArea.classList.add('has-file');
+    }
+  });
+});
+
+// ─── Sounds ───────────────────────────────────────────────────────────────────
+function playSuccess() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  [261.63, 329.63, 392.00].forEach((freq, i) => {
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const start = ctx.currentTime + i * 0.12;
+    osc.start(start);
+    gain.gain.setValueAtTime(0.25, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+    osc.stop(start + 0.35);
+  });
+}
+
+function playError() {
+  const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = 'sawtooth';
+  osc.frequency.value = 120;
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.5);
+}
+
+</script>
+</body>
+</html>

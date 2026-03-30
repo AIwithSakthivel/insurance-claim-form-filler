@@ -1,0 +1,191 @@
+# JS WINDSHIELDS — MASTER INSTRUCTION FILE
+# Upload this file to any new Claude chat to instantly load all business rules.
+# Claude will use these instructions for all tasks without needing re-explanation.
+
+═══════════════════════════════════════════════════════════════
+SECTION 1: BUSINESS IDENTITY
+═══════════════════════════════════════════════════════════════
+
+Business Name    : JS Windshields
+Type             : Auto Glass Retail — Supply & Installation
+Website          : jswindshields.com
+GSTIN            : 33BVOPR2356C1ZK
+Primary Email    : jswindshields21@gmail.com
+Branch Emails    : jsdpi@jswindshields.com | jstvm@jswindshields.com
+
+Team:
+  - Rupak Kumar   → Proprietor (primary user)
+  - Karthi        → Manager
+  - Prakash       → Branch associate
+
+Bank Details (for Cashless Claims):
+  Bank   : IndusInd Bank
+  A/C No : 259080742507
+  IFSC   : INDB0000202
+  Branch : Dharmapuri Main
+
+═══════════════════════════════════════════════════════════════
+SECTION 2: BRANCHES
+═══════════════════════════════════════════════════════════════
+
+BRANCH 1 — DHARMAPURI (Code: B1 / DPI)
+  Address  : 5/215, Sagadevan Complex, Lakkiampatty, Dharmapuri - 636705, Tamil Nadu
+  Phone    : 9080742507
+  Form     : Motor OD Claim Form (1 page)
+
+BRANCH 2 — TIRUVANNAMALAI (Code: B2 / TVM)
+  Address  : 92, Swetha Complex, Manalurpettai Road, Keelanaikarai - 606601, Tamil Nadu
+  Phone    : 9345616006
+  Form     : Motor Claim Form (2 pages)
+
+RELATED BUSINESS — JS WINDSHIELDS AND HARDWARES
+  Owner    : Gnana Prakash J
+  Address  : 65/6, Flour Mill Back Side, Dharmapuri - 636809, Tamil Nadu
+
+RULES FOR ALL FORMS:
+  - State field → always write "Tamil Nadu" (NEVER abbreviate as "TN")
+  - All text → center aligned, font size 9
+  - Workshop address → font size 8
+
+═══════════════════════════════════════════════════════════════
+SECTION 3: INSURANCE CLAIM FORM RULES
+═══════════════════════════════════════════════════════════════
+
+STEP 1 — ALWAYS ASK (if not provided):
+  □ Which branch? (Dharmapuri or Tiruvannamalai)
+  □ Cashless or Non-Cashless?
+  □ Date of accident?
+  □ Time of accident? (AM or PM)
+  □ Place of accident?
+  □ Accident type? (Stone hit / Tree branch moving / Tree branch parked)
+  □ Estimate amount? (optional)
+
+FORM FILLING RULES:
+  □ Cashless claim    → Fill bank details (IndusInd Bank, A/C: 259080742507, IFSC: INDB0000202)
+  □ Non-Cashless      → Leave bank details blank
+  □ All Yes/No fields → Mark "No" (underline with filled rectangle)
+  □ AM/PM             → Underline the correct one
+  □ Moving vehicle    → Occupants = 1
+  □ Parked vehicle    → Occupants = 0
+  □ No mobile number  → Do NOT fill mobile in insured details section
+  □ Driver details    → Extract from DL document only
+  □ Policy No         → Extract from insurance document (do not ask user)
+  □ MUST use reportlab overlay method (form_filler.py) — annotations do NOT print
+  □ PRINT ALIGNMENT   → Output is always physically printed; all text must fall within field boundaries,
+                         never overflow into adjacent fields or form lines, and never get clipped at page edges
+
+PDF FILLING METHOD:
+  Script   : form_filler.py (reportlab overlay — merged into original PDF)
+  Approach : Coordinates are form-specific. For each new insurer's blank form:
+             1. Run PyMuPDF text extraction against the blank PDF to get label positions
+             2. Calculate field value positions relative to each label's end position
+             3. Add a new coordinate map in form_filler.py (backend) and claim_filler_v2.html (frontend)
+             4. Upload the new blank form PDF alongside the app
+  PDF Size : Standard A4 = 595.56 x 842.04 pts (verify per form — some may differ)
+  Note     : Each insurer's form has unique coordinates — never reuse coordinates across forms
+
+═══════════════════════════════════════════════════════════════
+SECTION 4: STANDARD ACCIDENT DESCRIPTIONS
+═══════════════════════════════════════════════════════════════
+
+STONE HIT (moving vehicle):
+"While the vehicle was in motion, a flying stone projected from a preceding moving truck struck the front windshield, resulting in damage."
+
+TREE BRANCH — MOVING VEHICLE:
+"A tree branch fell onto the front windshield while the vehicle was in motion, causing damage."
+
+TREE BRANCH — PARKED VEHICLE:
+"A tree branch fell onto the front windshields while the vehicle was parked, causing damage."
+
+═══════════════════════════════════════════════════════════════
+SECTION 5: DOCUMENT EXTRACTION RULES
+═══════════════════════════════════════════════════════════════
+
+When customer documents are uploaded (RC, DL, Insurance, Aadhaar, PAN):
+  Extract automatically:
+    FROM RC       → Insured name, address, reg no, make, model, engine no, chassis no, mfg year
+    FROM DL       → Driver name, DOB, DL number, DL valid till
+    FROM POLICY   → Insurer name, policy number, policy start/end dates, IDV
+    FROM AADHAAR  → Aadhaar number (last 4 digits acceptable)
+    FROM PAN      → PAN number
+
+  For commercial vehicles, also extract:
+    FC number & validity, Permit number & validity, Tax receipt number & validity
+
+  API model to use: claude-sonnet-4-20250514
+  Response format : JSON only (no markdown, no explanation)
+
+═══════════════════════════════════════════════════════════════
+SECTION 6: WORK ORDER RULES
+═══════════════════════════════════════════════════════════════
+
+Serial Number Format:
+  Dharmapuri      → B1-001, B1-002, B1-003...
+  Tiruvannamalai  → B2-001, B2-002, B2-003...
+
+Required fields per work order:
+  Customer name & phone, Vehicle reg no & model,
+  Work description (windshield type), Estimate & final amount,
+  Payment status (Paid / Pending / Partial),
+  Payment mode (Cash / Insurance / UPI / Credit / Cheque),
+  Insurance company name (if applicable), Technician name,
+  Delivery date & time
+
+═══════════════════════════════════════════════════════════════
+SECTION 7: LETTERPAD & DOCUMENT RULES
+═══════════════════════════════════════════════════════════════
+
+JS WINDSHIELDS LETTERPAD:
+  Heading   : JS WINDSHIELDS
+  Branch    : Lakkiampatty, Dharmapuri - 636705, Tamil Nadu
+  Phone     : 9080742507
+  Email     : jswindshields21@gmail.com
+  GSTIN     : 33BVOPR2356C1ZK
+  Style     : Black & white only, no colors
+
+JS WINDSHIELDS AND HARDWARES LETTERPAD:
+  Heading   : JS WINDSHIELDS AND HARDWARES
+  Owner     : Gnana Prakash J
+  Address   : 65/6, Flour Mill Back Side, Dharmapuri - 636809, Tamil Nadu
+  Email     : jswindshields21@gmail.com
+  GSTIN     : 33BVOPR2356C1ZK
+  Style     : Black & white only, no colors
+
+═══════════════════════════════════════════════════════════════
+SECTION 8: APPS & TOOLS BUILT
+═══════════════════════════════════════════════════════════════
+
+1. claim_filler_v2.html  (production — hosted on Netlify at jswindshields.com/auto-claim-form-filler)
+   → Phone-based standalone app — no server required
+   → Upload govt ID PDF → Claude AI extracts fields → fills claim form in browser → download PDF
+   → Claude API key stored in localStorage (one-time setup per device)
+   → Works with any mobile browser, no installation needed
+
+2. backend/main.py + form_filler.py  (v1 — local laptop server, not recommended for production)
+   → FastAPI server, requires laptop to be running on same WiFi
+   → Same functionality as v2 but server-dependent
+
+═══════════════════════════════════════════════════════════════
+SECTION 9: GENERAL CLAUDE BEHAVIOUR RULES
+═══════════════════════════════════════════════════════════════
+
+□ Always refer to previous context in this file before asking the user for information
+□ Never ask for information already available in this file
+□ When filling forms — use reportlab overlay (NOT annotation method)
+□ All PDFs must be print-ready (embedded text, not annotations)
+□ Output PDF will always be physically printed — ensure text lands precisely within field boundaries with no overflow or clipping
+□ Verify field coordinates account for printer margins — text must not be cut off at page edges
+□ Text alignment in forms → center aligned within each field box
+□ Multi-line text must stay within the field box — reduce max_lines or font size if content overflows
+□ Never let text from one field bleed into adjacent fields or form lines
+□ When user uploads documents → extract all fields automatically
+□ State field → always "Tamil Nadu" (never "TN")
+□ Do not show "eg." or example hints in apps
+□ Sounds: success = C-E-G chime | error = low buzz
+□ Apps must work on phone browser (no laptop dependency)
+
+═══════════════════════════════════════════════════════════════
+END OF INSTRUCTION FILE — JS WINDSHIELDS
+Upload this file + customer documents to any new Claude chat.
+Claude will automatically apply all rules above.
+═══════════════════════════════════════════════════════════════

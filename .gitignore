@@ -1,0 +1,19 @@
+# Claude Code
+.claude/
+
+# Environment
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Output PDFs
+data/
+deploy/

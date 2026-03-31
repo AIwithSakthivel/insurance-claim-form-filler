@@ -86,6 +86,8 @@ Manual transfer of details from multiple physical documents to insurer claim for
 4. Add environment variable:
    - `API_KEY=<your_anthropic_key>`
 5. Deploy and open the Railway URL.
+6. If you keep Root Directory as repository root, use:
+   - Start Command: `uvicorn --app-dir backend main:app --host 0.0.0.0 --port $PORT`
 
 ### Render (Alternative)
 1. Connect repository to Render.

@@ -1,334 +1,281 @@
-# Auto-Form Filler — Technical Design
-**Project:** JS Windshields Insurance Claim Auto-Filler
-**Version:** 1.0 (Prototype)
-**Date:** March 2026
+# Auto-Form Filler - Technical Design
+**Project:** JS Windshields Insurance Claim Auto-Filler  
+**Scope:** Backend implementation + business instruction alignment  
+**Version:** 2.0 (As Implemented)  
+**Date:** March 31, 2026
 
 ---
 
-## 1. Architecture Overview
+## 1. Purpose
 
-Two parallel implementations exist. Both produce identical output.
+This document describes the **current backend design in this repository** and how it aligns with `Instructions/JSWindshields_Instructions.txt`.
 
-### Version 1 — Backend (FastAPI + Python)
-```
-Mobile Browser
-     │
-     ▼
-FastAPI Server (laptop, port 8080)
-     ├── POST /process
-     │       ├── extractor.py  →  Claude Vision API
-     │       ├── form_filler.py →  reportlab overlay
-     │       └── returns filled PDF
-     └── GET /  →  serves frontend/index.html
-```
-
-### Version 2 — Serverless (Pure HTML, recommended)
-```
-Mobile Browser
-     ├── Loads index.html (from Netlify)
-     ├── Fetches united_india_claim_form.pdf (from Netlify)
-     ├── POST → api.anthropic.com  (Claude extraction)
-     └── PDF filling via pdf-lib (runs in browser)
-         → Download filled PDF (no server involved)
-```
-
-**v2 is the production recommendation** — no server to maintain, runs from any mobile browser, hosted as static files on Netlify (free). Domain jswindshields.com is registered on GoDaddy, nameservers point to Netlify.
+It is implementation-first: all sections reflect actual code under `backend/` and actual assets in this repo.
 
 ---
 
-## 2. File Structure
+## 2. Current Architecture (As-Is)
 
+Two execution paths exist today:
+
+### Path A: Backend-assisted browser flow (default in `frontend/claim_filler_v2.html`)
+
+```text
+User (mobile/desktop browser)
+  -> GET /                     (FastAPI serves frontend)
+  -> POST /extract             (FastAPI calls Claude, returns JSON)
+  -> Browser fills PDF via pdf-lib using /claim_forms/<insurer>.pdf
+  -> Browser downloads filled PDF
 ```
-rupak/
-├── backend/                        # Version 1 — Python backend
-│   ├── main.py                     # FastAPI app, routes
-│   ├── extractor.py                # Claude Vision extraction
-│   ├── form_filler.py              # reportlab PDF overlay
-│   ├── config.py                   # Static business constants
+
+### Path B: Full backend fill flow (`POST /process`)
+
+```text
+User client
+  -> POST /process             (PDF + form inputs)
+      -> extractor.extract_fields()   [Claude]
+      -> form_filler.fill_form()      [reportlab overlay + pypdf merge]
+  <- application/pdf (filled form bytes)
+```
+
+FastAPI also serves static assets:
+- `/static` -> `frontend/`
+- `/claim_forms` -> `claim_forms/`
+- `/logo` -> `logo/`
+
+---
+
+## 3. Actual Repository Layout
+
+```text
+.
+├── backend/
+│   ├── main.py
+│   ├── extractor.py
+│   ├── form_filler.py
+│   ├── config.py
 │   ├── requirements.txt
-│   ├── .env                        # ANTHROPIC_API_KEY (gitignored)
-│   ├── .env.example
-│   └── analyze_coords.py           # One-time coordinate analysis tool
-│
+│   └── .env
+├── Instructions/
+│   └── JSWindshields_Instructions.txt
 ├── frontend/
-│   ├── index.html                  # v1 frontend (served by FastAPI)
-│   ├── claim_filler_v2.html        # v2 standalone app (upload to Hostinger)
-│   └── united_india_claim_form.pdf # Blank form (upload to Hostinger)
-│
-├── forms/
-│   └── united_india_claim_form.pdf # Blank claim form (used by backend)
-│
-├── JSWindshields_Instructions.txt  # Master business rules
-├── govt_id.pdf                     # Sample combined govt ID (testing)
-├── sample_filled_form_reference.pdf # Manually filled reference form
-├── spec.md                         # Product specification
-└── design.md                       # This file
+│   └── claim_filler_v2.html
+├── claim_forms/
+│   ├── Cholamandalam-Claim-Form.pdf
+│   ├── Generali-Central-Claim-Form.pdf
+│   ├── HDFC-ERGO-Claim-Form.pdf
+│   ├── Kotak-Mahindra-Claim-Form.pdf
+│   ├── Liberty-General-Claim-Form.pdf
+│   ├── Magma-HDI-Claim-Form.pdf
+│   ├── Reliance-General-Claim-Form.pdf
+│   ├── Royal-Sundaram-Claim-Form.pdf
+│   ├── SBI-General-Claim-Form.pdf
+│   ├── Shriram-General-Claim-Form.pdf
+│   ├── TATA-AIG-Claim-Form.pdf
+│   ├── United-India-Claim-Form.pdf
+│   └── Universal-Sompo-Claim-Form.pdf
+├── logo/JSWINDSHIELDSLOGO.png
+├── render.yaml
+├── spec.md
+└── design.md
 ```
 
 ---
 
-## 3. PDF Coordinate System
+## 4. Backend Component Design
 
-The blank claim form is a **digitally created flat PDF** (not scanned).
+## 4.1 `backend/main.py`
+Responsibilities:
+- Boot FastAPI app and CORS middleware (`allow_origins=["*"]`).
+- Load `.env` and enforce `ANTHROPIC_API_KEY` presence for extraction routes.
+- Serve frontend and static claim form assets.
+- Expose API routes:
+  - `GET /` -> serves `frontend/claim_filler_v2.html`
+  - `POST /extract` -> extraction-only endpoint
+  - `POST /process` -> extraction + PDF fill endpoint
+  - `GET /health` -> basic health status
 
-```
-Page size: 595.56 × 842.04 pts (A4)
+## 4.2 `backend/extractor.py`
+Responsibilities:
+- Convert uploaded PDF bytes to base64.
+- Call Anthropic Messages API with model `claude-sonnet-4-20250514`.
+- Send a strict extraction prompt with JSON-only response instructions.
+- Parse model output into dict; strips markdown fences defensively before `json.loads`.
 
-PyMuPDF coords:    Origin top-left,    y increases downward
-reportlab coords:  Origin bottom-left, y increases upward
-pdf-lib coords:    Origin bottom-left, y increases upward  (same as reportlab)
+Extracted keys:
+- `policy_no`, `insured_name`, `insured_address`, `pin_code`
+- `aadhaar_no`, `pan_no`
+- `reg_no`, `make`, `model`, `engine_no`, `chassis_no`
+- `driver_name`, `dl_no`, `dl_expiry`
 
-Conversion:  rl_y = PAGE_H - pymupdf_y0 - 7
-             (−7 accounts for font ascent at size 9)
-```
+## 4.3 `backend/form_filler.py`
+Responsibilities:
+- Build a reportlab overlay page using fixed coordinates.
+- Merge overlay onto selected insurer PDF page 1 using `pypdf`.
+- Return resulting PDF bytes.
 
-Coordinates were derived by running `analyze_coords.py` (PyMuPDF text block extraction) against the blank form, giving exact (x, y) positions of every label. Field value positions are calculated relative to each label's end position.
+Key behaviors:
+- Uses Helvetica, size 9 (workshop name/address size 8).
+- Centers text within field bounds.
+- Wraps long text for address/place/accident description.
+- Always fills `State = Tamil Nadu`.
+- Cashless flow fills bank fields; non-cashless keeps them blank.
+- Underlines selected `AM` or `PM`.
+- Underlines `No` for all Yes/No questions.
+- Auto-fills declaration date with `date.today()` and place from config (`Dharmapuri`).
 
----
-
-## 4. Field Coordinate Map
-
-All y values in reportlab / pdf-lib format (origin bottom-left).
-
-| Field | x_left | x_right | y |
-|-------|--------|---------|---|
-| Policy No | 65 | 570 | 720.6 |
-| Insured Name | 176 | 570 | 707.5 |
-| Insured Address (line 1) | 182 | 570 | 692.2 |
-| Pin Code | 158 | 250 | 646.7 |
-| State | 283 | 570 | 646.7 |
-| Aadhaar No | 162 | 290 | 620.1 |
-| PAN No | 335 | 570 | 622.0 |
-| Account No | 168 | 290 | 605.9 |
-| Bank Name | 348 | 570 | 605.9 |
-| IFSC Code | 175 | 290 | 592.9 |
-| Branch Name | 356 | 570 | 592.9 |
-| Registration No | 184 | 293 | 579.5 |
-| Make | 327 | 408 | 579.5 |
-| Model | 444 | 570 | 579.5 |
-| Engine No | 162 | 293 | 565.6 |
-| Chassis No | 346 | 570 | 565.6 |
-| Date of Loss | 172 | 290 | 551.3 |
-| Time | 322 | 398 | 551.3 |
-| Place of Accident | 222 | 570 | 536.8 |
-| Driver Name | 174 | 570 | 505.1 |
-| DL No / Expiry | 248 | 570 | 492.4 |
-| Accident Description (start) | 115 | 570 | 467.0 |
-| No of Occupants | 220 | 290 | 423.4 |
-| Workshop Name | 245 | 570 | 411.0 |
-| Workshop Address | 245 | 570 | 401.5 |
-| Workshop Mobile | 195 | 290 | 387.8 |
-| Estimate Amount | 530 | 575 | 389.0 |
-| Declaration Date | 47 | 200 | 95.1 |
-| Declaration Place | 49 | 395 | 81.8 |
+## 4.4 `backend/config.py`
+Responsibilities:
+- Stores static business constants:
+  - Workshop identity (Dharmapuri)
+  - Bank details
+  - Declaration place
+  - Accident description templates
+  - Occupants mapping by accident type
 
 ---
 
-## 5. Yes/No Underline Positions
+## 5. API Contract
 
-All Yes/No fields are always marked **No**. A filled black rectangle (1.5pt height) is drawn below the "No" text.
+## 5.1 `POST /extract`
+**Input (`multipart/form-data`)**
+- `govt_id_pdf` (required, `.pdf` only)
 
-| Field | x_start | x_end | pymupdf_y1 |
-|-------|---------|-------|------------|
-| Theft of Vehicle | 205.7 | 217.4 | 470.6 |
-| Theft of Accessories | 222.8 | 234.5 | 495.2 |
-| Accident reported to police | 275.1 | 284.9 | 519.3 |
-| Any Injury/Death to Driver | 247.0 | 256.8 | 548.3 |
-| Any TP Injury/Death | 221.3 | 231.0 | 580.4 |
-| Any Injury/Death to Occupant | 261.1 | 270.8 | 615.8 |
-| Any TP Property Damage | 240.6 | 250.4 | 651.3 |
+**Output (`application/json`)**
+- Extracted field dict (14 keys listed above)
 
-```
-underline_y (pdf-lib) = PAGE_H − pymupdf_y1 − 5
-rect: (x_start, underline_y − 1.5, width, 1.5)
-```
+**Errors**
+- `500` if `ANTHROPIC_API_KEY` missing
+- `400` for non-PDF upload
+- `500` for extraction/model/parsing failure
 
----
+## 5.2 `POST /process`
+**Input (`multipart/form-data`)**
+- `govt_id_pdf` (required)
+- `cashless` (`cashless` | `non-cashless`)
+- `insurer_file` (filename from `claim_forms/`)
+- `accident_date` (`DD/MM/YYYY`)
+- `accident_time` (`HH:MM` in 12h-style value expected by form)
+- `am_pm` (`AM` | `PM`)
+- `accident_place` (text)
+- `accident_type` (`stone_hit` | `branch_moving` | `branch_parked`)
+- `estimate_amount` (optional)
 
-## 6. AM/PM Underline Positions
+**Server-derived values**
+- `accident_description` from `ACCIDENT_DESCRIPTIONS[accident_type]`
+- `occupants` from `OCCUPANTS[accident_type]`
 
-| Option | x_start | x_end | pymupdf_y1 |
-|--------|---------|-------|------------|
-| A.M. | 400.2 | 419.4 | 293.7 |
-| P.M. | 427.5 | 446.3 | 293.7 |
+**Output**
+- `application/pdf` with header: `attachment; filename=filled_claim_form.pdf`
 
----
-
-## 7. Text Rendering Rules
-
-| Rule | Value |
-|------|-------|
-| Font | Helvetica (standard PDF font) |
-| Main font size | 9pt |
-| Workshop address font size | 8pt |
-| Line leading | 11pt |
-| Alignment | Horizontally centered within field bounds |
-| Multi-line fields | Wrapped by word, centered per line |
-
-**Centering formula:**
-```
-x = x_left + (field_width − text_width) / 2
-if text_width >= field_width: x = x_left  (left-align fallback)
-```
-
-**Multi-line fields:**
-- Insured Address: max 3 lines
-- Place of Accident: max 2 lines
-- Accident Description: max 4 lines
-
----
-
-## 8. Claude Extraction
-
-### Model
-`claude-sonnet-4-20250514`
-
-### Input
-Combined govt ID PDF (RC, Insurance Policy, DL, Aadhaar, PAN, optional Estimate) sent as base64-encoded document.
-
-### Output
-JSON with 14 fields:
+## 5.3 `GET /health`
+Output:
 ```json
-{
-  "policy_no": "",
-  "insured_name": "",
-  "insured_address": "",
-  "pin_code": "",
-  "aadhaar_no": "",
-  "pan_no": "",
-  "reg_no": "",
-  "make": "",
-  "model": "",
-  "engine_no": "",
-  "chassis_no": "",
-  "driver_name": "",
-  "dl_no": "",
-  "dl_expiry": ""
-}
-```
-
-### Key Extraction Rules
-- `insured_name` → from RC (owner), not DL
-- `driver_name` → from DL exclusively
-- `insured_address` → street/locality only, no pin code, no state
-- `dl_expiry` → LMV validity date preferred, format DD-MM-YYYY
-- `aadhaar_no` → formatted with spaces (XXXX XXXX XXXX)
-- Empty string `""` for any field not found
-
-### Browser Call (v2)
-```javascript
-headers: {
-  'x-api-key': apiKey,
-  'anthropic-version': '2023-06-01',
-  'content-type': 'application/json',
-  'anthropic-dangerous-allow-browser': 'true'
-}
+{"status": "ok"}
 ```
 
 ---
 
-## 9. PDF Filling — Implementation Comparison
+## 6. PDF Layout and Rendering Rules
 
-| Aspect | v1 (Python) | v2 (JavaScript) |
-|--------|-------------|-----------------|
-| Library | reportlab + pypdf | pdf-lib |
-| Where it runs | Server (laptop) | Browser (phone) |
-| Coordinate origin | bottom-left | bottom-left |
-| Text centering | `stringWidth()` | `font.widthOfTextAtSize()` |
-| Overlay method | Canvas → PdfWriter.merge_page() | PDFDocument.load() → drawText() |
-| Output | HTTP response (bytes) | Blob → createObjectURL() |
+## 6.1 Coordinate System
+- Target page constants in code:
+  - `PAGE_W = 595.56`
+  - `PAGE_H = 842.04`
+- Conversion helper:
+  - `rl_y = PAGE_H - pymupdf_y0 - 7`
 
-Coordinates are **identical** in both implementations since reportlab and pdf-lib share the same bottom-left origin and point units.
+## 6.2 Typography and alignment
+- Font: Helvetica
+- Default size: 9
+- Workshop size: 8
+- Line spacing (`LEADING`): 11
+- Horizontal alignment: centered in each `[x_left, x_right]` box
+- Overflow behavior: if text width exceeds box width, left fallback at `x_left`
 
----
+## 6.3 Wrapped fields
+- Insured address: max 3 lines
+- Accident place: max 2 lines
+- Accident description: max 4 lines
 
-## 10. v2 Deployment — Netlify + GoDaddy
-
-**Infrastructure:**
-- Domain registrar: GoDaddy (`jswindshields.com`)
-- Hosting: Netlify (free static hosting)
-- GoDaddy nameservers point to Netlify
-
-**Deploy folder structure:**
-```
-deploy/
-└── auto-claim-form-filler/
-    ├── index.html                  ← claim_filler_v2.html renamed
-    └── united_india_claim_form.pdf
-```
-
-Drag and drop the `deploy/auto-claim-form-filler/` folder in Netlify dashboard.
-
-**Access URL:** `https://jswindshields.com/auto-claim-form-filler/`
-
-The blank form is fetched via a relative URL (`./united_india_claim_form.pdf`) at runtime. Both files must be in the same directory.
-
-See `DEPLOY.md` for full step-by-step deployment instructions.
+## 6.4 Yes/No and AM/PM markings
+- Yes/No items are rendered as black underline rectangles under `No` positions.
+- AM/PM rendered as underline below selected token.
 
 ---
 
-## 11. v1 Deployment — Local (Laptop)
+## 7. Instruction Alignment Matrix
 
+| Instruction Rule | Status in Current Code | Notes |
+|---|---|---|
+| State must be `Tamil Nadu` | Implemented | Hardcoded in PDF fill path. |
+| Text center aligned, size 9 | Implemented | Centering helper + font size defaults. |
+| Workshop address size 8 | Implemented | `FONT_SIZE_WORKSHOP = 8`. |
+| Cashless -> fill bank details | Implemented | Conditional in form fill logic. |
+| Non-cashless -> leave bank blank | Implemented | Same conditional. |
+| All Yes/No -> mark No | Implemented | `YES_NO_UNDERLINES` loop. |
+| Underline AM/PM | Implemented | `AM_COORDS` / `PM_COORDS`. |
+| Driver details from DL only | Implemented in prompt intent | Enforced by extraction prompt, not deterministic parser logic. |
+| Policy no from insurance doc | Implemented in prompt intent | Prompt directs model source. |
+| Use reportlab overlay (printable) | Implemented in backend `/process` | Browser flow also exists via `pdf-lib`. |
+| Phone browser usability | Implemented | Frontend is mobile-first single page. |
+| Success/error sounds | Implemented in frontend | Matches instruction behavior. |
+
+---
+
+## 8. Gaps Between Instruction File and Implementation
+
+1. Branch selection (Dharmapuri/Tiruvannamalai) is not implemented in backend; config is fixed to Dharmapuri values.
+2. Instruction says each insurer requires unique coordinates; current backend reuses one coordinate map for all insurer PDFs.
+3. Extraction rules mention additional commercial-vehicle fields (FC/permit/tax); backend extraction schema does not include them.
+4. Current default frontend path uses `/extract` + browser fill; `/process` exists but is not the primary UI path.
+5. `insurer_file` is accepted directly and joined as a path; there is no backend whitelist validation.
+6. API has open CORS and no auth/rate limiting.
+
+---
+
+## 9. Runtime and Deployment
+
+## 9.1 Python dependencies
+- anthropic
+- fastapi
+- uvicorn
+- python-multipart
+- reportlab
+- pypdf
+- pymupdf
+- python-dotenv
+
+## 9.2 Local run
+From `backend/`:
 ```bash
-cd backend
+pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
 
-Requires:
-- `.env` file with `ANTHROPIC_API_KEY=sk-ant-...`
-- All devices on same WiFi network
-- Mac firewall to allow connections on port 8080
-
-**Not recommended for production** — tied to laptop being on and connected.
-
----
-
-## 12. API Key Management
-
-| Version | Storage | Security |
-|---------|---------|----------|
-| v1 | `.env` file on laptop | Private, server-side |
-| v2 | Browser `localStorage` | Exposed on device — acceptable for internal single-user tool |
+## 9.3 Render deployment
+`render.yaml` config:
+- `rootDir: backend`
+- build: `pip install -r requirements.txt`
+- start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- env var required: `ANTHROPIC_API_KEY`
 
 ---
 
-## 13. Data Privacy
+## 10. Recommended Next Engineering Steps
 
-- No customer data is stored anywhere
-- Claude API processes the PDF in-memory per request
-- v2: Data never leaves the browser except for the Claude API call
-- v1: Data passes through the laptop server but is not persisted
-
----
-
-## 14. Adding the TVM Branch (Future)
-
-To support Tiruvannamalai 2-page form:
-1. Run `analyze_coords.py` against TVM blank form to get coordinates
-2. Add a separate coordinate map in `form_filler.py` / `claim_filler_v2.html`
-3. Add branch selector in UI
-4. Route to correct coordinate map based on branch selection
-5. Upload TVM blank form PDF to Hostinger
+1. Add strict backend whitelist for `insurer_file` against known files in `claim_forms/`.
+2. Split form coordinate maps by insurer and select map dynamically.
+3. Extend extraction schema for commercial vehicle fields listed in instructions.
+4. Add validation and normalization for date/time/amount inputs at API boundary.
+5. Add authentication and restrict CORS before internet-facing production rollout.
+6. Add automated regression checks for coordinate overflow and clipping per insurer form.
 
 ---
 
-## 15. Dependencies
+## 11. Design Decision Summary
 
-### Python (v1)
-```
-anthropic>=0.86.0
-fastapi>=0.110.0
-uvicorn>=0.29.0
-python-multipart>=0.0.9
-reportlab>=4.0.0
-pypdf>=4.0.0
-pymupdf>=1.24.0
-python-dotenv>=1.0.0
-```
-
-### JavaScript (v2)
-```
-pdf-lib@1.17.1  (via unpkg CDN)
-Anthropic API   (direct HTTPS fetch)
-```
-No build step. No npm. No framework.
+- Extraction is delegated to Claude Sonnet with a strict JSON schema prompt.
+- Rendering is deterministic coordinate-based overlay for print-ready output.
+- Business constants are centralized in `config.py`.
+- System currently favors rapid operational use for Dharmapuri workflow, with clear extension points for branch expansion and insurer-specific precision.

@@ -42,8 +42,8 @@ def root():
 @app.post("/extract")
 async def extract(govt_id_pdf: UploadFile = File(...)):
     """Proxy Claude extraction — avoids browser CORS restrictions."""
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        raise HTTPException(500, "ANTHROPIC_API_KEY not set in .env")
+    if not os.getenv("API_KEY"):
+        raise HTTPException(500, "API_KEY not set in environment")
     if not govt_id_pdf.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Please upload a PDF file.")
     pdf_bytes = await govt_id_pdf.read()
@@ -65,8 +65,8 @@ async def process(
     accident_type: str = Form(...),      # "stone_hit" | "branch_moving" | "branch_parked"
     estimate_amount: str = Form(""),     # optional
 ):
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        raise HTTPException(500, "ANTHROPIC_API_KEY not set in .env")
+    if not os.getenv("API_KEY"):
+        raise HTTPException(500, "API_KEY not set in environment")
 
     if not govt_id_pdf.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Please upload a PDF file.")

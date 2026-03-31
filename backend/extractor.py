@@ -1,5 +1,6 @@
 """Extract fields from combined govt ID PDF using Claude Vision."""
 import json
+import os
 import anthropic
 from dotenv import load_dotenv
 
@@ -40,7 +41,10 @@ Rules:
 
 
 def extract_fields(pdf_bytes: bytes) -> dict:
-    client = anthropic.Anthropic()
+    api_key = os.getenv("API_KEY")
+    if not api_key:
+        raise ValueError("API_KEY not set in environment")
+    client = anthropic.Anthropic(api_key=api_key)
 
     import base64
     pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")

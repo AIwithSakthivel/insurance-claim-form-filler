@@ -87,7 +87,7 @@ FastAPI also serves static assets:
 ## 4.1 `backend/main.py`
 Responsibilities:
 - Boot FastAPI app and CORS middleware (`allow_origins=["*"]`).
-- Load `.env` and enforce `ANTHROPIC_API_KEY` presence for extraction routes.
+- Load `.env` and enforce `API_KEY` presence for extraction routes.
 - Serve frontend and static claim form assets.
 - Expose API routes:
   - `GET /` -> serves `frontend/claim_filler_v2.html`
@@ -145,7 +145,7 @@ Responsibilities:
 - Extracted field dict (14 keys listed above)
 
 **Errors**
-- `500` if `ANTHROPIC_API_KEY` missing
+- `500` if `API_KEY` missing
 - `400` for non-PDF upload
 - `500` for extraction/model/parsing failure
 
@@ -258,7 +258,7 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 - `rootDir: backend`
 - build: `pip install -r requirements.txt`
 - start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- env var required: `ANTHROPIC_API_KEY`
+- env var required: `API_KEY`
 
 ---
 

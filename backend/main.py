@@ -9,9 +9,14 @@ from pathlib import Path
 
 load_dotenv(Path(__file__).parent / ".env")
 
-from extractor import extract_fields
-from form_filler import fill_form
-from config import ACCIDENT_DESCRIPTIONS, OCCUPANTS
+try:
+    from extractor import extract_fields
+    from form_filler import fill_form
+    from config import ACCIDENT_DESCRIPTIONS, OCCUPANTS
+except ModuleNotFoundError:
+    from backend.extractor import extract_fields
+    from backend.form_filler import fill_form
+    from backend.config import ACCIDENT_DESCRIPTIONS, OCCUPANTS
 
 app = FastAPI(title="Auto-Form Filler — JS Windshields")
 

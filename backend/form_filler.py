@@ -11,19 +11,34 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from pypdf import PdfReader, PdfWriter
 
-from config import (
-    CLAIM_FORMS_DIR,
-    WORKSHOP_NAME,
-    WORKSHOP_ADDRESS,
-    WORKSHOP_MOBILE,
-    BANK_ACCOUNT_NO,
-    BANK_NAME,
-    BANK_IFSC,
-    BANK_BRANCH,
-    DECLARATION_PLACE,
-    ACCIDENT_DESCRIPTIONS,
-    OCCUPANTS,
-)
+try:
+    from config import (
+        CLAIM_FORMS_DIR,
+        WORKSHOP_NAME,
+        WORKSHOP_ADDRESS,
+        WORKSHOP_MOBILE,
+        BANK_ACCOUNT_NO,
+        BANK_NAME,
+        BANK_IFSC,
+        BANK_BRANCH,
+        DECLARATION_PLACE,
+        ACCIDENT_DESCRIPTIONS,
+        OCCUPANTS,
+    )
+except ModuleNotFoundError:
+    from backend.config import (
+        CLAIM_FORMS_DIR,
+        WORKSHOP_NAME,
+        WORKSHOP_ADDRESS,
+        WORKSHOP_MOBILE,
+        BANK_ACCOUNT_NO,
+        BANK_NAME,
+        BANK_IFSC,
+        BANK_BRANCH,
+        DECLARATION_PLACE,
+        ACCIDENT_DESCRIPTIONS,
+        OCCUPANTS,
+    )
 
 PAGE_W = 595.56
 PAGE_H = 842.04
